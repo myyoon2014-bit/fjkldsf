@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>우리반 미술관</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: sans-serif; user-select: none; }
+    canvas { display: block; }
+    .glassmorphism {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
+</head>
+<body class="relative w-screen h-screen">
+
+  <!-- 메인 메인 캔버스 -->
+  <canvas id="gameCanvas" class="w-full h-full"></canvas>
+
+  <!-- 상단 우측 UI 버튼 바 -->
+  <div class="absolute top-4 right-4 z-10 flex items-center gap-2">
+    <button id="addArtBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg transition flex items-center gap-2">
+      <span>➕</span> 그림 더 삽입하기
+    </button>
+    <button id="qrBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-lg transition flex items-center gap-2">
+      <span>📱</span> QR코드 보이기
+    </button>
+  </div>
+
+  <!-- 조작 설명 패널 -->
+  <div class="absolute bottom-4 left-4 z-10 glassmorphism p-3 rounded-2xl shadow-lg text-xs text-gray-700 flex flex-col gap-1">
+    <div class="font-bold text-gray-900 mb-1">🎮 이동 조작 방법</div>
+    <div>• 키보드: <span class="font-bold">A, D</span> 키 또는 <span class="font-bold">←, →</span> 화살표 키</div>
+    <div>• 캐릭터가 걸어가는 모습이 적용되어 있습니다.</div>
+  </div>
+
+  <!-- [모달 1] 모달 - 입장 및 작품 등록 -->
+  <div id="entryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+    <div class="bg-white/90 glassmorphism rounded-3xl shadow-2xl w-full max-w-lg p-6 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="text-center mb-4">
+        <span class="inline-block px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full mb-1">🎨 우리반 미술관</span>
+        <h2 class="text-2xl font-black text-gray-800">미술관 입장하기</h2>
+        <p class="text-xs text-gray-500 mt-1">닉네임을 입력하고 작품을 올려보세요!</p>
+      </div>
+
+      <!-- 닉네임 입력 -->
+      <div class="mb-4">
+        <label class="block text-xs font-bold text-gray-700 mb-1">내 닉네임 / 이름 <span class="text-red-500">*</span></label>
+        <input type="text" id="usernameInput" placeholder="예: 3번 김철수" class="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm transition">
+        <p id="nameError" class="text-xs text-red-500 font-bold mt-1 hidden">⚠️ 닉네임을 써주세요!</p>
+      </div>
+
+      <!-- 캐릭터 옷 색상 -->
+      <div class="mb-5">
+        <label class="block text-xs font-bold text-gray-700 mb-2">캐릭터 옷 색상</label>
+        <div class="flex gap-3 justify-center" id="colorPicker">
+          <button data-color="#3b82f6" class="w-8 h-8 rounded-full bg-blue-500 ring-4 ring-offset-2 ring-blue-500 color-opt"></button>
+          <button data-color="#ef4444" class="w-8 h-8 rounded-full bg-red-500 color-opt"></button>
+          <button data-color="#10b981" class="w-8 h-8 rounded-full bg-emerald-500 color-opt"></button>
+          <button data-color="#f59e0b" class="w-8 h-8 rounded-full bg-amber-500 color-opt"></button>
+          <button data-color="#8b5cf6" class="w-8 h-8 rounded-full bg-purple-500 color-opt"></button>
+        </div>
+      </div>
+
+      <hr class="border-gray-200 mb-4">
+
+      <!-- 작품 파일 삽입 -->
+      <div class="mb-4">
+        <label class="block text-xs font-bold text-gray-700 mb-1">작품 그림 파일 삽입 (선택)</label>
+        <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center cursor-pointer hover:border-amber-500 transition bg-white/50">
+          <input type="file" id="artFileInput" accept="image/*" class="hidden">
+          <div id="uploadPlaceholder">
+            <span class="text-2xl block mb-1">📁</span>
+            <span class="text-xs text-gray-500">클릭하거나 그림 이미지를 여기에 드래그하세요</span>
+          </div>
+          <img id="imagePreview" class="hidden max-h-36 mx-auto rounded-lg shadow-md object-contain">
+        </div>
+      </div>
+
+      <!-- 작품명 & 설명 -->
+      <div class="space-y-3 mb-6">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">작품명</label>
+          <input type="text" id="artTitleInput" placeholder="예: 무지개 언덕의 봄" class="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">작품 한마디 / 설명</label>
+          <input type="text" id="artDescInput" placeholder="작품에 대한 느낌을 적어주세요" class="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm">
+        </div>
+      </div>
+
+      <!-- 버튼 영역 -->
+      <div class="flex gap-2">
+        <button id="skipBtn" class="flex-1 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-2xl text-sm transition">
+          넘어가기
+        </button>
+        <button id="submitArtBtn" class="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl text-sm shadow-md transition">
+          작품 등록하고 입장
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- [모달 2] QR코드 모달 -->
+  <div id="qrModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-3xl p-6 text-center max-w-xs w-full shadow-2xl">
+      <h3 class="font-bold text-lg text-gray-800 mb-2">📱 QR코드로 공유하기</h3>
+      <div class="bg-gray-100 p-4 rounded-2xl mb-4 flex justify-center">
+        <img id="qrImage" src="" alt="QR Code" class="w-44 h-44 rounded-lg">
+      </div>
+      <button id="closeQrBtn" class="w-full py-2.5 bg-gray-800 text-white font-bold rounded-xl text-sm">닫기</button>
+    </div>
+  </div>
+
+  <script>
+    // ----------------------------------------------------------------
+    // 1. 상태 및 데이터 초기화
+    // ----------------------------------------------------------------
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let myPlayer = {
+      name: '',
+      color: '#3b82f6',
+      x: 150,
+      y: 0,
+      animFrame: 0,
+      isWalking: false,
+      direction: 1 // 1: 우, -1: 좌
+    };
+
+    // 기본 예시 미술 작품 목록
+    let artList = [
+      { id: 1, title: '해바라기 마을', author: '선생님', desc: '밝고 따뜻한 미술관에 오신 것을 환영합니다!', imageSrc: 'https://picsum.photos/id/1015/300/200' },
+      { id: 2, title: '푸른 바다의 꿈', author: '예시 작품', desc: '시원한 여름 바다', imageSrc: 'https://picsum.photos/id/1039/300/200' }
+    ];
+
+    let keys = {};
+    let selectedImageBase64 = null;
+
+    // Canvas Resize
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      myPlayer.y = canvas.height - 130;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // ----------------------------------------------------------------
+    // 2. 닉네임 검증 & 모달 로직
+    // ----------------------------------------------------------------
+    const entryModal = document.getElementById('entryModal');
+    const usernameInput = document.getElementById('usernameInput');
+    const nameError = document.getElementById('nameError');
+    const skipBtn = document.getElementById('skipBtn');
+    const submitArtBtn = document.getElementById('submitArtBtn');
+
+    // 옷 색상 선택
+    document.querySelectorAll('.color-opt').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.color-opt').forEach(b => b.classList.remove('ring-4', 'ring-offset-2', 'ring-blue-500'));
+        e.target.classList.add('ring-4', 'ring-offset-2', 'ring-blue-500');
+        myPlayer.color = e.target.getAttribute('data-color');
+      });
+    });
+
+    // 이미지 업로드 압축
+    const artFileInput = document.getElementById('artFileInput');
+    const dropZone = document.getElementById('dropZone');
+    const imagePreview = document.getElementById('imagePreview');
+    const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+
+    dropZone.addEventListener('click', () => artFileInput.click());
+    artFileInput.addEventListener('change', handleFileSelect);
+
+    function handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const img = new Image();
+        img.onload = () => {
+          // 최대 800px 압축
+          const maxDim = 800;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+            else { w = Math.round((w * maxDim) / h); h = maxDim; }
+          }
+          const tmpCanvas = document.createElement('canvas');
+          tmpCanvas.width = w;
+          tmpCanvas.height = h;
+          const tmpCtx = tmpCanvas.getContext('2d');
+          tmpCtx.drawImage(img, 0, 0, w, h);
+          selectedImageBase64 = tmpCanvas.toDataURL('image/jpeg', 0.85);
+
+          imagePreview.src = selectedImageBase64;
+          imagePreview.classList.remove('hidden');
+          uploadPlaceholder.classList.add('hidden');
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // 검증 후 처리
+    function validateAndStart(isUploadingArt) {
+      const name = usernameInput.value.trim();
+      if (!name) {
+        nameError.classList.remove('hidden');
+        usernameInput.focus();
+        usernameInput.classList.add('border-red-500');
+        return false;
+      }
+
+      nameError.classList.add('hidden');
+      usernameInput.classList.remove('border-red-500');
+      myPlayer.name = name;
+
+      if (isUploadingArt && selectedImageBase64) {
+        const newArt = {
+          id: Date.now(),
+          title: document.getElementById('artTitleInput').value.trim() || '무제',
+          author: myPlayer.name,
+          desc: document.getElementById('artDescInput').value.trim() || '',
+          imageSrc: selectedImageBase64
+        };
+        artList.push(newArt);
+      }
+
+      entryModal.classList.add('hidden');
+      return true;
+    }
+
+    skipBtn.addEventListener('click', () => validateAndStart(false));
+    submitArtBtn.addEventListener('click', () => validateAndStart(true));
+
+    document.getElementById('addArtBtn').addEventListener('click', () => {
+      entryModal.classList.remove('hidden');
+    });
+
+    // ----------------------------------------------------------------
+    // 3. QR코드 모달
+    // ----------------------------------------------------------------
+    const qrBtn = document.getElementById('qrBtn');
+    const qrModal = document.getElementById('qrModal');
+    const qrImage = document.getElementById('qrImage');
+    const closeQrBtn = document.getElementById('closeQrBtn');
+
+    qrBtn.addEventListener('click', () => {
+      const currentUrl = encodeURIComponent(window.location.href);
+      qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${currentUrl}`;
+      qrModal.classList.remove('hidden');
+    });
+
+    closeQrBtn.addEventListener('click', () => qrModal.classList.add('hidden'));
+
+    // ----------------------------------------------------------------
+    // 4. 키보드 이벤트 & 걸어가는 애니메이션
+    // ----------------------------------------------------------------
+    window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
+    window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+    function update() {
+      let moving = false;
+      const speed = 4;
+
+      if (keys['a'] || keys['arrowleft']) {
+        myPlayer.x -= speed;
+        myPlayer.direction = -1;
+        moving = true;
+      }
+      if (keys['d'] || keys['arrowright']) {
+        myPlayer.x += speed;
+        myPlayer.direction = 1;
+        moving = true;
+      }
+
+      // 화면 범위 제한 (작품 수에 맞춰 복도 자동 확장)
+      const maxDistance = Math.max(canvas.width, artList.length * 350 + 200);
+      myPlayer.x = Math.max(50, Math.min(myPlayer.x, maxDistance));
+
+      if (moving) {
+        myPlayer.animFrame += 0.15;
+      } else {
+        myPlayer.animFrame = 0;
+      }
+    }
+
+    // ----------------------------------------------------------------
+    // 5. 미술관 렌더링 (그리기)
+    // ----------------------------------------------------------------
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 카메라 트래킹
+      const cameraX = Math.max(0, myPlayer.x - canvas.width / 2);
+
+      ctx.save();
+      ctx.translate(-cameraX, 0);
+
+      // (1) 배경 벽면 & 조명
+      const galleryWidth = Math.max(canvas.width * 2, artList.length * 350 + 500);
+      ctx.fillStyle = '#262626';
+      ctx.fillRect(0, 0, galleryWidth, canvas.height);
+
+      // 바닥
+      ctx.fillStyle = '#171717';
+      ctx.fillRect(0, canvas.height - 100, galleryWidth, 100);
+
+      // (2) 미술 작품들
+      artList.forEach((art, index) => {
+        const x = 200 + index * 350;
+        const y = canvas.height / 2 - 120;
+
+        // 스팟 조명
+        const grad = ctx.createRadialGradient(x + 100, y - 50, 10, x + 100, y + 100, 200);
+        grad.addColorStop(0, 'rgba(255, 245, 200, 0.25)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x - 50, y - 100, 300, 400);
+
+        // 액자 틀
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(x - 10, y - 10, 220, 160);
+
+        // Canvas / 그림
+        if (!art.imgObj) {
+          art.imgObj = new Image();
+          art.imgObj.src = art.imageSrc;
+        }
+        if (art.imgObj.complete) {
+          ctx.drawImage(art.imgObj, x, y, 200, 140);
+        } else {
+          ctx.fillStyle = '#e2e8f0';
+          ctx.fillRect(x, y, 200, 140);
+        }
+
+        // 네임택
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x + 20, y + 155, 160, 40);
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(art.title, x + 30, y + 172);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(`작가: ${art.author}`, x + 30, y + 187);
+      });
+
+      // (3) 사람이 걸어가는 캐릭터
+      drawCharacter(myPlayer);
+
+      ctx.restore();
+    }
+
+    // 캐릭터 그리기 (사람 걸음 애니메이션)
+    function drawCharacter(p) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+
+      const bounce = Math.abs(Math.sin(p.animFrame)) * 4;
+      const legAngle = Math.sin(p.animFrame) * 15;
+
+      // 머리
+      ctx.fillStyle = '#ffedd5';
+      ctx.beginPath();
+      ctx.arc(0, -50 - bounce, 12, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 몸통 (옷 색상)
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-10, -38 - bounce, 20, 25);
+
+      // 다리 (걸어가는 애니메이션)
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 4;
+
+      // 왼다리
+      ctx.beginPath();
+      ctx.moveTo(-4, -13 - bounce);
+      ctx.lineTo(-4 + Math.sin(p.animFrame) * 8, 0);
+      ctx.stroke();
+
+      // 오른다리
+      ctx.beginPath();
+      ctx.moveTo(4, -13 - bounce);
+      ctx.lineTo(4 - Math.sin(p.animFrame) * 8, 0);
+      ctx.stroke();
+
+      // 닉네임표
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(-30, -80 - bounce, 60, 20);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.name || '관람객', 0, -66 - bounce);
+
+      ctx.restore();
+    }
+
+    // 메인 게임 루프
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>
